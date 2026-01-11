@@ -99,7 +99,6 @@ function formatEntryMessage(trade: TradeRecord): string {
 		`Entry: ${trade.entryPrice}`,
 		`Qty: ${trade.quantity}`,
 		`SL: ${trade.stopLoss}`,
-		`TP: ${trade.takeProfit}`,
 		`Signal: ${trade.signal}`,
 	].join("\n");
 }
@@ -237,7 +236,6 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 		balance,
 	);
 	const adjustedSL = applyTickSize(levels.stopLoss, meta);
-	const adjustedTP = applyTickSize(levels.takeProfit, meta);
 	const now = Date.now();
 
 	const trade: TradeRecord = {
@@ -247,7 +245,7 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 		entryPrice,
 		quantity: filledQty,
 		stopLoss: adjustedSL,
-		takeProfit: adjustedTP,
+		takeProfit: 0,
 		openedAt: now,
 		signal: intent.signal,
 		status: "OPEN",
@@ -260,16 +258,6 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 		side: exitSide,
 		type: "STOP_MARKET",
 		stopPrice: adjustedSL,
-		closePosition: "true",
-		reduceOnly: "true",
-		workingType: "MARK_PRICE",
-	});
-
-	await restClient.submitNewOrder({
-		symbol: intent.symbol,
-		side: exitSide,
-		type: "TAKE_PROFIT_MARKET",
-		stopPrice: adjustedTP,
 		closePosition: "true",
 		reduceOnly: "true",
 		workingType: "MARK_PRICE",

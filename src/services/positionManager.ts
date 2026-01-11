@@ -43,16 +43,6 @@ async function cancelAndSetStops(
 		reduceOnly: "true",
 		workingType: "MARK_PRICE",
 	});
-
-	await restClient.submitNewOrder({
-		symbol: trade.symbol,
-		side: exitSide,
-		type: "TAKE_PROFIT_MARKET",
-		stopPrice: trade.takeProfit,
-		closePosition: "true",
-		reduceOnly: "true",
-		workingType: "MARK_PRICE",
-	});
 }
 
 async function closePositionNow(
