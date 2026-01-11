@@ -10,6 +10,10 @@ import type { SymbolMeta, TradeIntent, TradeRecord, TradeSide } from "../types";
 import { logger } from "../utils/logger";
 import { logTrade } from "./tradeLogger";
 
+async function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function oppositeSide(side: TradeSide): TradeSide {
 	return side === "BUY" ? "SELL" : "BUY";
 }
@@ -83,6 +87,11 @@ function ensureNotional(
 	}
 }
 
+async function latestPrice(symbol: string): Promise<number> {
+	const ticker = await restClient.getSymbolPriceTicker({ symbol });
+	return ensureNumber((ticker as { price: number | string }).price);
+}
+
 function entryLevels(intent: TradeIntent) {
 	const stopLoss =
 		intent.side === "BUY"
@@ -106,6 +115,79 @@ function formatEntryMessage(trade: TradeRecord): string {
 	].join("\n");
 }
 
+async function placeChasingLimitOrder(
+	intent: TradeIntent,
+	quantity: number,
+	meta: SymbolMeta,
+): Promise<{ entryPrice: number; filledQty: number }> {
+	let remaining = quantity;
+	let totalFilled = 0;
+	let totalCost = 0;
+	let attempt = 0;
+
+	while (remaining > 0) {
+		attempt += 1;
+		const livePrice = await latestPrice(intent.symbol);
+		const limitPrice = applyTickSize(livePrice, meta);
+
+		const order = await restClient.submitNewOrder({
+			symbol: intent.symbol,
+			side: intent.side,
+			type: "LIMIT",
+			quantity: remaining,
+			price: limitPrice,
+			timeInForce: "GTC",
+		});
+
+		logger.info(
+			{
+				symbol: intent.symbol,
+				attempt,
+				price: limitPrice,
+				qty: remaining,
+				orderId: order.orderId,
+			},
+			"Placed chasing limit order",
+		);
+
+		await sleep(10_000);
+
+		const status = await restClient.getOrder({
+			symbol: intent.symbol,
+			orderId: order.orderId,
+		});
+
+		const executedQty = ensureNumber(status.executedQty);
+		const avgPrice = ensureNumber(
+			status.avgPrice || status.price || limitPrice,
+		);
+		const filledNow = Math.min(executedQty, remaining);
+
+		if (filledNow > 0) {
+			totalFilled += filledNow;
+			totalCost += filledNow * avgPrice;
+		}
+
+		if (status.status === "FILLED" || totalFilled >= quantity) {
+			const entryPrice = totalCost / totalFilled;
+			return { entryPrice, filledQty: totalFilled };
+		}
+
+		remaining = quantity - totalFilled;
+
+		await restClient
+			.cancelOrder({ symbol: intent.symbol, orderId: order.orderId })
+			.catch((err) => {
+				logger.warn(
+					{ symbol: intent.symbol, orderId: order.orderId, err },
+					"Failed to cancel chasing limit order",
+				);
+			});
+	}
+
+	throw new Error("Chasing limit order loop ended unexpectedly");
+}
+
 export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 	const meta = await ensureSymbolMeta(intent.symbol);
 
@@ -126,22 +208,16 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 		leverage: config.strategy.leverage,
 	});
 
-	const { stopLoss, takeProfit } = entryLevels(intent);
-	const adjustedSL = applyTickSize(stopLoss, meta);
-	const adjustedTP = applyTickSize(takeProfit, meta);
+	const chaseResult = await placeChasingLimitOrder(intent, quantity, meta);
+	const filledQty = chaseResult.filledQty;
+	const entryPrice = chaseResult.entryPrice || intent.entry;
+	if (filledQty <= 0) {
+		throw new Error("No fills received from chasing limit order");
+	}
 
-	const marketOrder = await restClient.submitNewOrder({
-		symbol: intent.symbol,
-		side: intent.side,
-		type: "MARKET",
-		quantity,
-		newOrderRespType: "RESULT",
-	});
-
-	const entryPrice =
-		ensureNumber(marketOrder.avgPrice) ||
-		ensureNumber(marketOrder.price) ||
-		intent.entry;
+	const levels = entryLevels({ ...intent, entry: entryPrice });
+	const adjustedSL = applyTickSize(levels.stopLoss, meta);
+	const adjustedTP = applyTickSize(levels.takeProfit, meta);
 	const now = Date.now();
 
 	const trade: TradeRecord = {
@@ -149,7 +225,7 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 		symbol: intent.symbol,
 		side: intent.side,
 		entryPrice,
-		quantity,
+		quantity: filledQty,
 		stopLoss: adjustedSL,
 		takeProfit: adjustedTP,
 		openedAt: now,
@@ -187,9 +263,9 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 			symbol: trade.symbol,
 			side: trade.side,
 			entry: entryPrice,
-			qty: quantity,
+			qty: filledQty,
 		},
-		"Market order placed with TP/SL",
+		"Limit chase order placed with TP/SL",
 	);
 
 	return trade;
