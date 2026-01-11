@@ -82,6 +82,10 @@ async function bootstrap() {
 	startTradeMonitor();
 	startPositionManager();
 	await runAtrJob();
+	if (config.scheduling.runCandidateOnStart) {
+		logger.info("Running candidate scan immediately (env override)");
+		await runCandidateJob();
+	}
 	scheduleJobs();
 }
 

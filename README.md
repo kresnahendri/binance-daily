@@ -13,12 +13,13 @@ TypeScript/RxJS pipeline that runs a daily USDM futures scan using the [`binance
 - Install deps: `npm install`.
 - Copy env template: `cp .env.example .env` and fill Binance API credentials (testnet by default), Telegram bot token/chat id, and strategy numbers.
 - Run locally: `npm start` (schedules cron jobs) or `npm run dev` for watch mode. All times are UTC.
+- For immediate testing (skip waiting for 00:00/00:15), set `RUN_CANDIDATE_ON_START=true` to run the candidate scan once at startup.
 - Lint: `npm run lint` (Biome).
 
 ### Key configuration (env)
 - `BINANCE_USE_TESTNET=true` is recommended until you confirm behaviour.
 - `POSITION_SIZE_PCT` (margin fraction), `LEVERAGE`, `ATR_PERIOD`, `QUOTE_ASSET`, and cron times in `src/config/index.ts`.
-- Exits: set `TIME_BASED_EXIT_HOURS` (default 20h) for max holding time, `PROFIT_TRIGGER_PCT` (default 5%) and `LOCK_PERCENT_OF_TRIGGER` (default 0.6) to lock in a portion of gains once the trigger is hit; monitor interval via `POSITION_CHECK_INTERVAL_SEC`.
+- Exits: set `TIME_BASED_EXIT_HOURS` (default 20h) for max holding time, `PROFIT_TRIGGER_PCT` (default 5%) and `LOCK_PERCENT_OF_TRIGGER` (default 0.6) to lock in a portion of gains once the trigger is hit; monitor interval via `POSITION_CHECK_INTERVAL_SEC`. Stop-loss uses the wider of 1×ATR or a loss equal to `STOP_LOSS_BALANCE_PCT` of balance (default 1%).
 - Files: ATR cache at `data/atr-cache.json`, trade log at `data/trades.log`.
 
 ### Notes

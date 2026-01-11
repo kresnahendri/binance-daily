@@ -93,18 +93,6 @@ async function latestPrice(symbol: string): Promise<number> {
 	return ensureNumber((ticker as { price: number | string }).price);
 }
 
-function entryLevels(intent: TradeIntent) {
-	const stopLoss =
-		intent.side === "BUY"
-			? intent.entry - intent.atr
-			: intent.entry + intent.atr;
-	const takeProfit =
-		intent.side === "BUY"
-			? intent.entry + 2 * intent.atr
-			: intent.entry - 2 * intent.atr;
-	return { stopLoss, takeProfit };
-}
-
 function formatEntryMessage(trade: TradeRecord): string {
 	return [
 		`New trade ${trade.symbol} (${trade.side})`,
@@ -114,6 +102,32 @@ function formatEntryMessage(trade: TradeRecord): string {
 		`TP: ${trade.takeProfit}`,
 		`Signal: ${trade.signal}`,
 	].join("\n");
+}
+
+function calculateLevels(
+	intent: TradeIntent,
+	entryPrice: number,
+	quantity: number,
+	availableBalance: number,
+) {
+	const atrStop =
+		intent.side === "BUY" ? entryPrice - intent.atr : entryPrice + intent.atr;
+	const takeProfit =
+		intent.side === "BUY"
+			? entryPrice + 2 * intent.atr
+			: entryPrice - 2 * intent.atr;
+
+	const riskAmount = availableBalance * config.strategy.stopLossBalancePct;
+	const riskPerUnit = riskAmount / quantity;
+	const balanceStop =
+		intent.side === "BUY" ? entryPrice - riskPerUnit : entryPrice + riskPerUnit;
+
+	const stopLoss =
+		intent.side === "BUY"
+			? Math.min(atrStop, balanceStop)
+			: Math.max(atrStop, balanceStop);
+
+	return { stopLoss, takeProfit };
 }
 
 async function placeChasingLimitOrder(
@@ -216,7 +230,12 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 		throw new Error("No fills received from chasing limit order");
 	}
 
-	const levels = entryLevels({ ...intent, entry: entryPrice });
+	const levels = calculateLevels(
+		{ ...intent, entry: entryPrice },
+		entryPrice,
+		filledQty,
+		balance,
+	);
 	const adjustedSL = applyTickSize(levels.stopLoss, meta);
 	const adjustedTP = applyTickSize(levels.takeProfit, meta);
 	const now = Date.now();

@@ -37,11 +37,14 @@ export const config = {
 		positionCheckIntervalSec: Number(
 			process.env.POSITION_CHECK_INTERVAL_SEC || "30",
 		),
+		stopLossBalancePct: Number(process.env.STOP_LOSS_BALANCE_PCT || "0.01"),
 	},
 	scheduling: {
 		atrCron: "0 0 * * *", // 00:00 UTC
 		candidateCron: "15 0 * * *", // 00:15 UTC
 		timezone: "UTC",
+		runCandidateOnStart:
+			(process.env.RUN_CANDIDATE_ON_START || "false").toLowerCase() === "true",
 	},
 	paths: {
 		atrCache: path.join(process.cwd(), "data/atr-cache.json"),
