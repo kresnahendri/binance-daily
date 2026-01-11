@@ -13,6 +13,7 @@ TypeScript/RxJS pipeline that runs a daily USDM futures scan using the [`binance
 - Install deps: `npm install`.
 - Copy env template: `cp .env.example .env` and fill Binance API credentials (testnet by default), Telegram bot token/chat id, and strategy numbers.
 - Run locally: `npm start` (schedules cron jobs) or `npm run dev` for watch mode. All times are UTC.
+- Lint: `npm run lint` (Biome).
 
 ### Key configuration (env)
 - `BINANCE_USE_TESTNET=true` is recommended until you confirm behaviour.
