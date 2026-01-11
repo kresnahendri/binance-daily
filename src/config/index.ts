@@ -31,6 +31,12 @@ export const config = {
 		atrPeriod: Number(process.env.ATR_PERIOD || "14"),
 		quoteAsset: process.env.QUOTE_ASSET || "USDT",
 		monitorMinutes: 90,
+		timeBasedExitHours: Number(process.env.TIME_BASED_EXIT_HOURS || "20"),
+		profitTriggerPct: Number(process.env.PROFIT_TRIGGER_PCT || "0.05"),
+		lockPercentOfTrigger: Number(process.env.LOCK_PERCENT_OF_TRIGGER || "0.6"),
+		positionCheckIntervalSec: Number(
+			process.env.POSITION_CHECK_INTERVAL_SEC || "30",
+		),
 	},
 	scheduling: {
 		atrCron: "0 0 * * *", // 00:00 UTC
@@ -40,5 +46,6 @@ export const config = {
 	paths: {
 		atrCache: path.join(process.cwd(), "data/atr-cache.json"),
 		tradeLog: path.join(process.cwd(), "data/trades.log"),
+		openTrades: path.join(process.cwd(), "data/open-trades.json"),
 	},
 };

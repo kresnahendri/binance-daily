@@ -4,6 +4,7 @@ import { filter } from "rxjs/operators";
 import { getWsClient } from "../clients/binance";
 import { sendTelegramMessage } from "../clients/telegram";
 import { logger } from "../utils/logger";
+import { closeTrade } from "./tradeStore";
 
 type OrderUpdateEvent = {
 	eventType: "ORDER_TRADE_UPDATE";
@@ -60,5 +61,6 @@ export function startTradeMonitor(): void {
 
 			logger.info({ symbol, realisedProfit }, "Trade closed");
 			await sendTelegramMessage(text);
+			await closeTrade(symbol, averagePrice, realisedProfit);
 		});
 }

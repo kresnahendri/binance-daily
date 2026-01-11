@@ -18,6 +18,7 @@ TypeScript/RxJS pipeline that runs a daily USDM futures scan using the [`binance
 ### Key configuration (env)
 - `BINANCE_USE_TESTNET=true` is recommended until you confirm behaviour.
 - `POSITION_SIZE_PCT` (margin fraction), `LEVERAGE`, `ATR_PERIOD`, `QUOTE_ASSET`, and cron times in `src/config/index.ts`.
+- Exits: set `TIME_BASED_EXIT_HOURS` (default 20h) for max holding time, `PROFIT_TRIGGER_PCT` (default 5%) and `LOCK_PERCENT_OF_TRIGGER` (default 0.6) to lock in a portion of gains once the trigger is hit; monitor interval via `POSITION_CHECK_INTERVAL_SEC`.
 - Files: ATR cache at `data/atr-cache.json`, trade log at `data/trades.log`.
 
 ### Notes

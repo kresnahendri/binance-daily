@@ -9,6 +9,7 @@ import { config } from "../config";
 import type { SymbolMeta, TradeIntent, TradeRecord, TradeSide } from "../types";
 import { logger } from "../utils/logger";
 import { logTrade } from "./tradeLogger";
+import { upsertOpenTrade } from "./tradeStore";
 
 async function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -256,6 +257,7 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 	});
 
 	await logTrade(trade);
+	await upsertOpenTrade(trade);
 	await sendTelegramMessage(formatEntryMessage(trade));
 
 	logger.info(

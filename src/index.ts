@@ -5,6 +5,7 @@ import { loadAtrCache, refreshAtrCache } from "./services/atrService";
 import { scanVolatilityCandidates } from "./services/candidateScanner";
 import { executeTrade } from "./services/orderService";
 import { watchCandidatesForSignals } from "./services/patternWatcher";
+import { startPositionManager } from "./services/positionManager";
 import { startTradeMonitor } from "./services/tradeMonitor";
 import { logger } from "./utils/logger";
 
@@ -79,6 +80,7 @@ function scheduleJobs() {
 async function bootstrap() {
 	logger.info("Starting Binance daily strategy");
 	startTradeMonitor();
+	startPositionManager();
 	await runAtrJob();
 	scheduleJobs();
 }

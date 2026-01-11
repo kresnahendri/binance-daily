@@ -54,6 +54,7 @@ export type TradeRecord = {
 	pnl?: number;
 	signal: TradeSignalType;
 	status: "OPEN" | "CLOSED";
+	profitLockApplied?: boolean;
 };
 
 export type SymbolMeta = {
