@@ -21,6 +21,7 @@ export type VolatilityCandidate = {
 	symbol: string;
 	atr: number;
 	range: number;
+	preferredSide: TradeSide;
 };
 
 export type TradeSide = "BUY" | "SELL";

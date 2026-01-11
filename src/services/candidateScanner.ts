@@ -1,7 +1,7 @@
 import { from, lastValueFrom } from "rxjs";
 import { filter, map, mergeMap, toArray } from "rxjs/operators";
 import { fetchKlines } from "../clients/binance";
-import type { AtrCache, VolatilityCandidate } from "../types";
+import type { AtrCache, TradeSide, VolatilityCandidate } from "../types";
 import { logger } from "../utils/logger";
 
 export async function scanVolatilityCandidates(
@@ -21,12 +21,15 @@ export async function scanVolatilityCandidates(
 					const candle =
 						candles[candles.length - 2] || candles[candles.length - 1];
 					if (!candle) return null;
+					if (candle.close === candle.open) return null;
 
 					const range = candle.high - candle.low;
 					const atr = atrCache[symbol].atr;
+					const preferredSide: TradeSide =
+						candle.close > candle.open ? "SELL" : "BUY";
 
 					if (range > atr) {
-						return { symbol, atr, range };
+						return { symbol, atr, range, preferredSide };
 					}
 					return null;
 				} catch (error) {
