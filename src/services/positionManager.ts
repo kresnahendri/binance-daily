@@ -9,8 +9,14 @@ function oppositeSide(side: TradeSide): TradeSide {
 	return side === "BUY" ? "SELL" : "BUY";
 }
 
-function pnlPercent(side: TradeSide, entry: number, mark: number): number {
-	return side === "BUY" ? (mark - entry) / entry : (entry - mark) / entry;
+function positionPnl(
+	side: TradeSide,
+	entry: number,
+	mark: number,
+	qty: number,
+): number {
+	const diff = side === "BUY" ? mark - entry : entry - mark;
+	return diff * Math.abs(qty);
 }
 
 async function cancelAndSetStops(
@@ -68,13 +74,15 @@ async function handleTrade(
 	markPrice: number,
 	positionAmt: number,
 	entryPrice: number,
+	availableBalance: number,
 ): Promise<void> {
 	const isLong = trade.side === "BUY";
 	const openSideMatches =
 		(isLong && positionAmt > 0) || (!isLong && positionAmt < 0);
 	if (!openSideMatches) return;
 
-	const pnlPct = pnlPercent(trade.side, entryPrice, markPrice);
+	const pnlQuote = positionPnl(trade.side, entryPrice, markPrice, positionAmt);
+	const pnlPctOfBalance = pnlQuote / availableBalance;
 	const hoursOpen = (Date.now() - trade.openedAt) / (1000 * 60 * 60);
 
 	if (hoursOpen >= config.strategy.timeBasedExitHours) {
@@ -94,26 +102,35 @@ async function handleTrade(
 		return;
 	}
 
-	if (!trade.profitLockApplied && pnlPct >= config.strategy.profitTriggerPct) {
-		const lockPct =
-			config.strategy.profitTriggerPct * config.strategy.lockPercentOfTrigger;
+	if (
+		!trade.profitLockApplied &&
+		pnlPctOfBalance >= config.strategy.profitTriggerPct
+	) {
+		const triggerAmount = availableBalance * config.strategy.profitTriggerPct;
+		const lockQuote = triggerAmount * config.strategy.lockPercentOfTrigger;
 		const lockPrice =
 			trade.side === "BUY"
-				? entryPrice * (1 + lockPct)
-				: entryPrice * (1 - lockPct);
+				? entryPrice + lockQuote / Math.abs(positionAmt)
+				: entryPrice - lockQuote / Math.abs(positionAmt);
 
 		await cancelAndSetStops(trade, lockPrice);
 		trade.stopLoss = lockPrice;
 		trade.profitLockApplied = true;
 		await upsertOpenTrade(trade);
 		logger.info(
-			{ symbol: trade.symbol, lockPrice, pnlPct },
+			{
+				symbol: trade.symbol,
+				lockPrice,
+				pnlQuote,
+				pnlPctOfBalance,
+				lockQuote,
+			},
 			"Locked profit and updated stops",
 		);
 		await sendTelegramMessage(
 			`Locked profit on ${trade.symbol}: stop set to ${lockPrice} after reaching ${(
-				pnlPct * 100
-			).toFixed(2)}%`,
+				pnlPctOfBalance * 100
+			).toFixed(2)}% of balance`,
 		);
 	}
 }
@@ -121,6 +138,18 @@ async function handleTrade(
 async function monitorPositions(): Promise<void> {
 	const openTrades = await loadOpenTrades();
 	if (!openTrades.length) return;
+
+	const balances = await restClient.getBalanceV3();
+	const balanceRecord = balances.find(
+		(b) => b.asset === config.strategy.quoteAsset,
+	);
+	const availableBalance = balanceRecord
+		? Number(balanceRecord.availableBalance)
+		: 0;
+	if (availableBalance <= 0) {
+		logger.warn("Skipping position monitor due to zero available balance");
+		return;
+	}
 
 	const positions = await restClient.getPositionsV3();
 	for (const trade of openTrades) {
@@ -138,7 +167,13 @@ async function monitorPositions(): Promise<void> {
 
 		const entryPrice = Number(pos.entryPrice) || trade.entryPrice;
 		const markPrice = Number(pos.markPrice);
-		await handleTrade(trade, markPrice, positionAmt, entryPrice);
+		await handleTrade(
+			trade,
+			markPrice,
+			positionAmt,
+			entryPrice,
+			availableBalance,
+		);
 	}
 }
 
