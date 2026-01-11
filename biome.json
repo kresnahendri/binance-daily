@@ -3,7 +3,7 @@
 	"formatter": { "enabled": true },
 	"linter": { "enabled": true, "rules": { "recommended": true } },
 	"files": {
-		"includes": ["**/*", "!dist", "!node_modules"],
+		"includes": ["**/*", "!dist", "!node_modules", "!data"],
 		"ignoreUnknown": true
 	}
 }

@@ -9,10 +9,10 @@ TypeScript/RxJS pipeline that runs a daily USDM futures scan using the [`binance
 - Trade events are logged to `data/trades.log` and Telegram notifications fire on entry/exit (user data stream).
 
 ### Setup
-- Requirements: Node.js 18+.
-- Install deps: `npm install`.
+- Requirements: Bun 1.0+ (installs Node-compatible deps and runs TS directly).
+- Install deps: `bun install`.
 - Copy env template: `cp .env.example .env` and fill Binance API credentials (testnet by default), Telegram bot token/chat id, and strategy numbers.
-- Run locally: `npm start` (schedules cron jobs) or `npm run dev` for watch mode. All times are UTC.
+- Run locally: `bun run start` (schedules cron jobs) or `bun run dev` for watch mode. All times are UTC.
 - For immediate testing (skip waiting for 00:00/00:15), set `RUN_CANDIDATE_ON_START=true` to run the candidate scan once at startup.
 - Lint: `npm run lint` (Biome).
 
