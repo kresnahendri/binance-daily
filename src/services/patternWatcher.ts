@@ -1,6 +1,13 @@
 import type { EventEmitter } from "node:events";
 import { fromEvent, merge, type Observable, timer } from "rxjs";
-import { filter, map, pairwise, share, take, takeUntil } from "rxjs/operators";
+import {
+	bufferCount,
+	filter,
+	map,
+	share,
+	take,
+	takeUntil,
+} from "rxjs/operators";
 import { getWsClient } from "../clients/binance";
 import { detectEngulfing, detectHammer } from "../patterns/candles";
 import type {
@@ -50,31 +57,30 @@ function klineToCandle(kline: KlinePayload): Candle {
 function toTradeIntent(
 	symbol: string,
 	atr: number,
-	prev: Candle,
-	curr: Candle,
+	candles: Candle[],
 	bias: TradeSide,
 ): TradeIntent | null {
-	const engulfing = detectEngulfing(prev, curr);
+	const engulfing = detectEngulfing(candles);
 	if (engulfing) {
 		const side = engulfing.includes("bearish") ? "SELL" : "BUY";
 		if (side !== bias) return null;
 		return {
 			symbol,
 			atr,
-			entry: curr.close,
+			entry: candles[candles.length - 1].close,
 			signal: engulfing,
 			side,
 		};
 	}
 
-	const hammer = detectHammer(curr);
+	const hammer = detectHammer(candles);
 	if (hammer) {
 		const side = hammer.includes("bearish") ? "SELL" : "BUY";
 		if (side !== bias) return null;
 		return {
 			symbol,
 			atr,
-			entry: curr.close,
+			entry: candles[candles.length - 1].close,
 			signal: hammer,
 			side,
 		};
@@ -113,13 +119,12 @@ export function watchCandidatesForSignals(
 		return shared$.pipe(
 			filter((event) => event.symbol === candidate.symbol),
 			map((event) => klineToCandle(event.kline)),
-			pairwise(),
-			map(([prev, curr]) =>
+			bufferCount(5, 1),
+			map((candles) =>
 				toTradeIntent(
 					candidate.symbol,
 					candidate.atr,
-					prev,
-					curr,
+					candles,
 					candidate.preferredSide,
 				),
 			),

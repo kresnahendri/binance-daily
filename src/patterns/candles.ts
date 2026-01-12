@@ -1,64 +1,33 @@
+import {
+	bearishengulfingpattern,
+	bullishengulfingpattern,
+	hammerpattern,
+} from "technicalindicators";
 import type { Candle, TradeSignalType } from "../types";
 
-export function candleRange(candle: Candle): number {
-	return candle.high - candle.low;
+function toStockData(candles: Candle[], window: number) {
+	const slice = candles.slice(-window);
+	return {
+		open: slice.map((c) => c.open),
+		high: slice.map((c) => c.high),
+		low: slice.map((c) => c.low),
+		close: slice.map((c) => c.close),
+	};
 }
 
-const isBullish = (candle: Candle) => candle.close > candle.open;
-const isBearish = (candle: Candle) => candle.close < candle.open;
-
-export function detectEngulfing(
-	prev: Candle,
-	curr: Candle,
-): TradeSignalType | null {
-	const prevBody = Math.abs(prev.close - prev.open);
-	const currBody = Math.abs(curr.close - curr.open);
-
-	if (prevBody === 0 || currBody === 0) {
-		return null;
-	}
-
-	const openInsidePrev = curr.open <= prev.close && curr.open >= prev.open;
-	const closeOutsidePrev = curr.close >= prev.open || curr.close <= prev.open;
-
-	if (
-		isBearish(prev) &&
-		isBullish(curr) &&
-		openInsidePrev &&
-		closeOutsidePrev
-	) {
-		return "bullish_engulfing";
-	}
-
-	if (
-		isBullish(prev) &&
-		isBearish(curr) &&
-		openInsidePrev &&
-		closeOutsidePrev
-	) {
-		return "bearish_engulfing";
-	}
-
+export function detectEngulfing(candles: Candle[]): TradeSignalType | null {
+	if (candles.length < 2) return null;
+	const data = toStockData(candles, 2);
+	if (bullishengulfingpattern(data)) return "bullish_engulfing";
+	if (bearishengulfingpattern(data)) return "bearish_engulfing";
 	return null;
 }
 
-export function detectHammer(candle: Candle): TradeSignalType | null {
-	const body = Math.abs(candle.close - candle.open);
-	const upperWick = candle.high - Math.max(candle.open, candle.close);
-	const lowerWick = Math.min(candle.open, candle.close) - candle.low;
-	const range = candleRange(candle);
-
-	if (range === 0 || body / range > 0.4) {
-		return null;
-	}
-
-	if (lowerWick >= body * 2 && upperWick <= body * 0.6) {
-		return "bullish_hammer";
-	}
-
-	if (upperWick >= body * 2 && lowerWick <= body * 0.6) {
-		return "bearish_hammer";
-	}
-
-	return null;
+export function detectHammer(candles: Candle[]): TradeSignalType | null {
+	if (candles.length < 2) return null;
+	const data = toStockData(candles, Math.min(candles.length, 5));
+	const isHammer = hammerpattern(data);
+	if (!isHammer) return null;
+	const last = candles[candles.length - 1];
+	return last.close >= last.open ? "bullish_hammer" : "bearish_hammer";
 }
