@@ -10,9 +10,12 @@ export async function sendTelegramMessage(text: string): Promise<void> {
 
 	const url = `https://api.telegram.org/bot${config.telegram.botToken}/sendMessage`;
 
-	await axios.post(url, {
-		chat_id: config.telegram.chatId,
-		text,
-		parse_mode: "Markdown",
-	});
+	try {
+		await axios.post(url, {
+			chat_id: config.telegram.chatId,
+			text,
+		});
+	} catch (error) {
+		logger.warn({ error }, "Failed to send Telegram message");
+	}
 }

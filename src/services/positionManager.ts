@@ -22,26 +22,55 @@ function positionPnl(
 async function cancelAndSetStops(
 	trade: TradeRecord,
 	lockPrice: number,
+	quantity: number,
 ): Promise<void> {
-	await restClient
-		.cancelAllOpenOrders({ symbol: trade.symbol })
-		.catch((err) => {
-			logger.warn(
-				{ symbol: trade.symbol, err },
-				"Failed to cancel open orders",
-			);
-		});
+	try {
+		await Promise.allSettled([
+			restClient.cancelAllOpenOrders({ symbol: trade.symbol }),
+			restClient.cancelAllAlgoOpenOrders({ symbol: trade.symbol } as {
+				symbol: string;
+			}),
+		]);
+	} catch (err) {
+		logger.warn({ symbol: trade.symbol, err }, "Failed to cancel open orders");
+	}
 
 	const exitSide = oppositeSide(trade.side);
 
-	await restClient.submitNewOrder({
+	type AlgoOrderParams = Parameters<typeof restClient.submitNewAlgoOrder>[0];
+	const base: AlgoOrderParams = {
+		algoType: "CONDITIONAL" as const,
 		symbol: trade.symbol,
 		side: exitSide,
-		type: "STOP_MARKET",
-		stopPrice: lockPrice,
-		closePosition: "true",
-		workingType: "MARK_PRICE",
-	});
+		type: "STOP_MARKET" as const,
+		triggerPrice: lockPrice,
+		workingType: "MARK_PRICE" as const,
+	};
+
+	const attempts: AlgoOrderParams[] = [
+		{ ...base, reduceOnly: "true" as const, quantity },
+		{ ...base, quantity },
+		{ ...base, closePosition: "true" as const },
+	];
+
+	let lastError: unknown;
+	for (const params of attempts) {
+		try {
+			await restClient.submitNewAlgoOrder(params);
+			return;
+		} catch (err) {
+			lastError = err;
+			logger.warn(
+				{ symbol: trade.symbol, err, params },
+				"Failed to place algo stop in monitor",
+			);
+		}
+	}
+
+	logger.error(
+		{ symbol: trade.symbol, err: lastError },
+		"All algo stop attempts failed in monitor",
+	);
 }
 
 async function closePositionNow(
@@ -102,7 +131,7 @@ async function handleTrade(
 				? entryPrice + lockQuote / Math.abs(positionAmt)
 				: entryPrice - lockQuote / Math.abs(positionAmt);
 
-		await cancelAndSetStops(trade, lockPrice);
+		await cancelAndSetStops(trade, lockPrice, Math.abs(positionAmt));
 		trade.stopLoss = lockPrice;
 		trade.profitLockApplied = true;
 		await upsertOpenTrade(trade);
