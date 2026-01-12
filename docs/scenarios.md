@@ -8,7 +8,7 @@ These examples walk through the daily flow, entry logic, and exit paths so you c
 - Result: No candidates → no WS subscriptions; nothing else happens until next day.
 
 ### 2) Candidate found but no pattern
-- 00:15 UTC: For `BTCUSDT`, 15m range > ATR → added as candidate, subscribed to 5m klines for 90 minutes.
+- 00:15 UTC: For `BTCUSDT`, 15m range > 25% of ATR → added as candidate, subscribed to 5m klines for 90 minutes.
 - Watcher checks each closed 5m candle pair for engulfing/hammer. If none appear in 90 minutes, subscription ends; no trade placed.
 
 ### 3) Long trade, normal win

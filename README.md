@@ -3,7 +3,7 @@
 TypeScript/RxJS pipeline that runs a daily USDM futures scan using the [`binance`](https://github.com/tiagosiebler/binance) SDK:
 
 - 00:00 UTC: pull 1D klines for all TRADING symbols on the chosen quote asset (default USDT), compute ATR(14), and cache to `data/atr-cache.json`.
-- 00:15 UTC: pull the first closed 15m candle; mark symbols where `high - low > ATR(14)` as candidates.
+- 00:15 UTC: pull the first closed 15m candle; mark symbols where `high - low > 25% of ATR(14)` as candidates.
 - Candidates stream 5m klines for 90 minutes; a bullish/bearish engulfing or hammer candle triggers a trade intent.
 - Place a limit-chasing order sized as `available quote balance * POSITION_SIZE_PCT * LEVERAGE / entry`, set SL at the wider of 1×ATR or 1% balance risk; profit is managed dynamically via profit-trigger lock and time-based exit (no static TP).
 - Trade events are logged to `data/trades.log` and Telegram notifications fire on entry/exit (user data stream).

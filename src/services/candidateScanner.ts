@@ -28,7 +28,7 @@ export async function scanVolatilityCandidates(
 					const preferredSide: TradeSide =
 						candle.close > candle.open ? "SELL" : "BUY";
 
-					if (range > atr) {
+					if (range > atr * 0.25) {
 						return { symbol, atr, range, preferredSide };
 					}
 					return null;
