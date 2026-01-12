@@ -55,6 +55,7 @@ export type TradeRecord = {
 	signal: TradeSignalType;
 	status: "OPEN" | "CLOSED";
 	profitLockApplied?: boolean;
+	lockFloorPct?: number;
 };
 
 export type SymbolMeta = {

@@ -98,45 +98,9 @@ function formatEntryMessage(trade: TradeRecord): string {
 		`New trade ${trade.symbol} (${trade.side})`,
 		`Entry: ${trade.entryPrice}`,
 		`Qty: ${trade.quantity}`,
-		`SL: ${trade.stopLoss}`,
+		`SL ref: ${trade.stopLoss}`,
 		`Signal: ${trade.signal}`,
 	].join("\n");
-}
-
-async function placeStop(
-	symbol: string,
-	side: TradeSide,
-	stopPrice: number,
-	quantity: number,
-): Promise<void> {
-	type AlgoOrderParams = Parameters<typeof restClient.submitNewAlgoOrder>[0];
-	const base: AlgoOrderParams = {
-		algoType: "CONDITIONAL" as const,
-		symbol,
-		side,
-		type: "STOP_MARKET" as const,
-		triggerPrice: stopPrice,
-		workingType: "MARK_PRICE" as const,
-	};
-
-	const attempts: AlgoOrderParams[] = [
-		{ ...base, reduceOnly: "true" as const, quantity },
-		{ ...base, quantity },
-		{ ...base, closePosition: "true" as const },
-	];
-
-	let lastError: unknown;
-	for (const params of attempts) {
-		try {
-			await restClient.submitNewAlgoOrder(params);
-			return;
-		} catch (err) {
-			lastError = err;
-			logger.warn({ symbol, err, params }, "Failed to place algo stop");
-		}
-	}
-
-	logger.error({ symbol, err: lastError }, "All stop attempts failed");
 }
 
 function calculateLevels(
@@ -286,10 +250,6 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 		signal: intent.signal,
 		status: "OPEN",
 	};
-
-	const exitSide = oppositeSide(intent.side);
-
-	await placeStop(intent.symbol, exitSide, adjustedSL, filledQty);
 
 	await logTrade(trade);
 	await upsertOpenTrade(trade);
