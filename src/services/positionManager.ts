@@ -39,6 +39,8 @@ async function handleTrade(
 	positionAmt: number,
 	entryPrice: number,
 	availableBalance: number,
+	totalPnlQuote: number,
+	totalPnlPctOfBalance: number,
 ): Promise<void> {
 	const isLong = trade.side === "BUY";
 	const openSideMatches =
@@ -49,7 +51,39 @@ async function handleTrade(
 	const pnlPctOfBalance = pnlQuote / availableBalance;
 	const hoursOpen = (Date.now() - trade.openedAt) / (1000 * 60 * 60);
 
-	if (hoursOpen >= config.strategy.timeBasedExitHours) {
+	const shouldTimeClose = hoursOpen >= config.strategy.timeBasedExitHours;
+	const stopLossHit =
+		totalPnlPctOfBalance <= -config.strategy.stopLossBalancePct;
+	const hitProfitTrigger =
+		!trade.profitLockApplied &&
+		totalPnlPctOfBalance >= config.strategy.profitTriggerPct;
+	const floorHit =
+		trade.profitLockApplied &&
+		typeof trade.lockFloorPct === "number" &&
+		totalPnlPctOfBalance <= trade.lockFloorPct;
+
+	logger.info(
+		{
+			symbol: trade.symbol,
+			side: trade.side,
+			positionAmt,
+			entryPrice,
+			markPrice,
+			pnlQuote,
+			pnlPctOfBalance,
+			totalPnlQuote,
+			totalPnlPctOfBalance,
+			hoursOpen,
+			shouldTimeClose,
+			stopLossHit,
+			hitProfitTrigger,
+			floorHit,
+			lockFloorPct: trade.lockFloorPct,
+		},
+		"Monitoring position",
+	);
+
+	if (shouldTimeClose) {
 		await closePositionNow(
 			trade.symbol,
 			oppositeSide(trade.side),
@@ -67,7 +101,7 @@ async function handleTrade(
 	}
 
 	// Hard stop-loss on balance pct
-	if (pnlPctOfBalance <= -config.strategy.stopLossBalancePct) {
+	if (stopLossHit) {
 		await closePositionNow(
 			trade.symbol,
 			oppositeSide(trade.side),
@@ -87,7 +121,7 @@ async function handleTrade(
 	}
 
 	// Profit trigger then floor close
-	if (!trade.profitLockApplied && pnlPctOfBalance >= config.strategy.profitTriggerPct) {
+	if (hitProfitTrigger) {
 		trade.profitLockApplied = true;
 		trade.lockFloorPct =
 			config.strategy.profitTriggerPct * config.strategy.lockPercentOfTrigger;
@@ -110,11 +144,8 @@ async function handleTrade(
 		return;
 	}
 
-	if (
-		trade.profitLockApplied &&
-		typeof trade.lockFloorPct === "number" &&
-		pnlPctOfBalance <= trade.lockFloorPct
-	) {
+	if (floorHit) {
+		const floorPct = trade.lockFloorPct ?? 0;
 		await closePositionNow(
 			trade.symbol,
 			oppositeSide(trade.side),
@@ -122,12 +153,12 @@ async function handleTrade(
 		);
 		await removeOpenTrade(trade.id);
 		logger.info(
-			{ symbol: trade.symbol, pnlPctOfBalance, lockFloorPct: trade.lockFloorPct },
+			{ symbol: trade.symbol, pnlPctOfBalance, lockFloorPct: floorPct },
 			"Closed position after profit floor hit",
 		);
 		await sendTelegramMessage(
 			`Closed ${trade.symbol} after profit floor (${(
-				trade.lockFloorPct * 100
+				floorPct * 100
 			).toFixed(2)}% of balance)`,
 		);
 		return;
@@ -151,6 +182,15 @@ async function monitorPositions(): Promise<void> {
 	}
 
 	const positions = await restClient.getPositionsV3();
+
+	const tradePositions: Array<{
+		trade: TradeRecord;
+		entryPrice: number;
+		markPrice: number;
+		positionAmt: number;
+		pnlQuote: number;
+	}> = [];
+
 	for (const trade of openTrades) {
 		const pos = positions.find((p) => p.symbol === trade.symbol);
 		if (!pos) {
@@ -166,12 +206,32 @@ async function monitorPositions(): Promise<void> {
 
 		const entryPrice = Number(pos.entryPrice) || trade.entryPrice;
 		const markPrice = Number(pos.markPrice);
-		await handleTrade(
+		const pnlQuote = positionPnl(trade.side, entryPrice, markPrice, positionAmt);
+		tradePositions.push({
 			trade,
+			entryPrice,
 			markPrice,
 			positionAmt,
-			entryPrice,
+			pnlQuote,
+		});
+	}
+
+	const totalPnlQuote = tradePositions.reduce(
+		(sum, t) => sum + t.pnlQuote,
+		0,
+	);
+	const totalPnlPctOfBalance =
+		availableBalance > 0 ? totalPnlQuote / availableBalance : 0;
+
+	for (const entry of tradePositions) {
+		await handleTrade(
+			entry.trade,
+			entry.markPrice,
+			entry.positionAmt,
+			entry.entryPrice,
 			availableBalance,
+			totalPnlQuote,
+			totalPnlPctOfBalance,
 		);
 	}
 }
