@@ -259,7 +259,6 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 		type: "STOP_MARKET",
 		stopPrice: adjustedSL,
 		closePosition: "true",
-		reduceOnly: "true",
 		workingType: "MARK_PRICE",
 	});
 

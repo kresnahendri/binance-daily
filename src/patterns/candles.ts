@@ -1,7 +1,8 @@
 import {
 	bearishengulfingpattern,
+	bearishhammerstick,
 	bullishengulfingpattern,
-	hammerpattern,
+	bullishhammerstick,
 } from "technicalindicators";
 import type { Candle, TradeSignalType } from "../types";
 
@@ -24,10 +25,9 @@ export function detectEngulfing(candles: Candle[]): TradeSignalType | null {
 }
 
 export function detectHammer(candles: Candle[]): TradeSignalType | null {
-	if (candles.length < 2) return null;
+	if (!candles.length) return null;
 	const data = toStockData(candles, Math.min(candles.length, 5));
-	const isHammer = hammerpattern(data);
-	if (!isHammer) return null;
-	const last = candles[candles.length - 1];
-	return last.close >= last.open ? "bullish_hammer" : "bearish_hammer";
+	if (bullishhammerstick(data)) return "bullish_hammer";
+	if (bearishhammerstick(data)) return "bearish_hammer";
+	return null;
 }

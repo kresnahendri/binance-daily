@@ -40,7 +40,6 @@ async function cancelAndSetStops(
 		type: "STOP_MARKET",
 		stopPrice: lockPrice,
 		closePosition: "true",
-		reduceOnly: "true",
 		workingType: "MARK_PRICE",
 	});
 }

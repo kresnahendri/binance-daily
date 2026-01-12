@@ -44,7 +44,7 @@ export async function refreshAtrCache(): Promise<AtrCache> {
 					);
 					return null;
 				}
-			}, 3),
+			}, 8),
 			filter((snapshot): snapshot is AtrSnapshot => Boolean(snapshot)),
 			toArray(),
 			tap((list) => logger.info({ count: list.length }, "ATR cache refreshed")),
