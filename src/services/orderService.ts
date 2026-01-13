@@ -9,6 +9,7 @@ import { config } from "../config";
 import type { SymbolMeta, TradeIntent, TradeRecord, TradeSide } from "../types";
 import { logger } from "../utils/logger";
 import { logTrade } from "./tradeLogger";
+import { hasTradedInCurrentCycle, markSymbolTraded } from "./tradeCycle";
 import { upsertOpenTrade } from "./tradeStore";
 
 async function sleep(ms: number): Promise<void> {
@@ -203,6 +204,12 @@ async function placeChasingLimitOrder(
 }
 
 export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
+	if (await hasTradedInCurrentCycle(intent.symbol)) {
+		throw new Error(
+			`${intent.symbol} already traded in the current cycle; skipping execution`,
+		);
+	}
+
 	const meta = await ensureSymbolMeta(intent.symbol);
 
 	const balance = await getAvailableBalance(config.strategy.quoteAsset);
@@ -253,6 +260,14 @@ export async function executeTrade(intent: TradeIntent): Promise<TradeRecord> {
 
 	await logTrade(trade);
 	await upsertOpenTrade(trade);
+	try {
+		await markSymbolTraded(intent.symbol);
+	} catch (err) {
+		logger.error(
+			{ symbol: intent.symbol, err },
+			"Failed to record trade in cycle store",
+		);
+	}
 	await sendTelegramMessage(formatEntryMessage(trade));
 
 	logger.info(

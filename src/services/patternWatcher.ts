@@ -62,12 +62,23 @@ function klineToCandle(kline: KlinePayload): Candle {
 	};
 }
 
+function respectsFifteenMinuteClose(
+	side: TradeSide,
+	fiveMinuteClose: number,
+	fifteenMinuteClose: number,
+): boolean {
+	if (side === "SELL") return fiveMinuteClose > fifteenMinuteClose;
+	return fiveMinuteClose < fifteenMinuteClose;
+}
+
 function toTradeIntent(
-	symbol: string,
-	atr: number,
+	candidate: VolatilityCandidate,
 	candles: Candle[],
-	bias: TradeSide,
 ): TradeIntent | null {
+	const { symbol, atr, preferredSide, fifteenMinuteCandle } = candidate;
+	const latestClose = candles[candles.length - 1].close;
+	const fifteenClose = fifteenMinuteCandle.close;
+
 	const engulfing = detectEngulfing(candles);
 	logger.info(
 		{
@@ -79,11 +90,23 @@ function toTradeIntent(
 	);
 	if (engulfing) {
 		const side = engulfing.includes("bearish") ? "SELL" : "BUY";
-		if (side !== bias) return null;
+		if (side !== preferredSide) return null;
+		if (!respectsFifteenMinuteClose(side, latestClose, fifteenClose)) {
+			logger.info(
+				{
+					symbol,
+					side,
+					latestClose,
+					fifteenClose,
+				},
+				"Skipping engulfing signal; 5m close not aligned with 15m close",
+			);
+			return null;
+		}
 		return {
 			symbol,
 			atr,
-			entry: candles[candles.length - 1].close,
+			entry: latestClose,
 			signal: engulfing,
 			side,
 		};
@@ -100,11 +123,23 @@ function toTradeIntent(
 	);
 	if (hammer) {
 		const side = hammer.includes("bearish") ? "SELL" : "BUY";
-		if (side !== bias) return null;
+		if (side !== preferredSide) return null;
+		if (!respectsFifteenMinuteClose(side, latestClose, fifteenClose)) {
+			logger.info(
+				{
+					symbol,
+					side,
+					latestClose,
+					fifteenClose,
+				},
+				"Skipping hammer signal; 5m close not aligned with 15m close",
+			);
+			return null;
+		}
 		return {
 			symbol,
 			atr,
-			entry: candles[candles.length - 1].close,
+			entry: latestClose,
 			signal: hammer,
 			side,
 		};
@@ -197,14 +232,7 @@ export function watchCandidatesForSignals(
 					"Evaluating candle patterns",
 				),
 			),
-			map((candles) =>
-				toTradeIntent(
-					candidate.symbol,
-					candidate.atr,
-					candles,
-					candidate.preferredSide,
-				),
-			),
+			map((candles) => toTradeIntent(candidate, candles)),
 			filter((intent): intent is TradeIntent => Boolean(intent)),
 			take(1),
 			takeUntil(stop$),

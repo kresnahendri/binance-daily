@@ -50,5 +50,6 @@ export const config = {
 		atrCache: path.join(process.cwd(), "data/atr-cache.json"),
 		tradeLog: path.join(process.cwd(), "data/trades.log"),
 		openTrades: path.join(process.cwd(), "data/open-trades.json"),
+		tradeCycle: path.join(process.cwd(), "data/trade-cycle.json"),
 	},
 };

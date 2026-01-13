@@ -7,6 +7,7 @@ import { executeTrade } from "./services/orderService";
 import { watchCandidatesForSignals } from "./services/patternWatcher";
 import { startPositionManager } from "./services/positionManager";
 import { startTradeMonitor } from "./services/tradeMonitor";
+import { hasTradedInCurrentCycle } from "./services/tradeCycle";
 import { logger } from "./utils/logger";
 
 async function runAtrJob(): Promise<void> {
@@ -47,6 +48,13 @@ async function runCandidateJob(): Promise<void> {
 		).subscribe({
 			next: async (intent) => {
 				try {
+					if (await hasTradedInCurrentCycle(intent.symbol)) {
+						logger.info(
+							{ symbol: intent.symbol },
+							"Skipping trade intent; symbol already traded this cycle",
+						);
+						return;
+					}
 					await executeTrade(intent);
 				} catch (error) {
 					logger.error(

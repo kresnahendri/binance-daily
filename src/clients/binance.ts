@@ -46,8 +46,14 @@ export async function fetchKlines(
 	symbol: string,
 	interval: "1d" | "15m" | "5m",
 	limit: number,
+	options?: { startTime?: number; endTime?: number },
 ): Promise<Candle[]> {
-	const data = await restClient.getKlines({ symbol, interval, limit });
+	const data = await restClient.getKlines({
+		symbol,
+		interval,
+		limit,
+		...(options ?? {}),
+	});
 
 	return data.map((kline) => ({
 		openTime: kline[0],
